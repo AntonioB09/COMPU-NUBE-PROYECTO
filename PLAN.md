@@ -305,3 +305,65 @@ docker compose exec synapse register_new_matrix_user http://localhost:8008 -c /d
 ---
 
 ## Tiempo estimado: ~1 hora
+New user localpart [root]: anto1
+
+Plan para conexion con otras maquinas:
+
+1. Find the host's LAN IP
+The user needs to know their PC's LAN IP (e.g., 192.168.1.10).
+
+2. Update .env
+Change SYNAPSE_SERVER_NAME=localhost to the actual LAN IP of the host.
+
+3. Regenerate Synapse config or update homeserver.yaml
+Since the server name changed, we need to regenerate the Synapse config with the new server name. This means:
+- Stop the containers
+- Delete the old data/synapse/homeserver.yaml (or edit server_name in it)
+- Actually, we could just edit server_name in homeserver.yaml and regenerate the signing key
+- Better approach: use docker compose run --rm synapse generate again with the new SYNAPSE_SERVER_NAME
+
+But wait - the docker compose run --rm synapse generate command checks if homeserver.yaml already exists and won't overwrite it. So we'd need to delete it first.
+
+Actually, a cleaner approach:
+1. Change .env with new server name
+2. Delete data/synapse/homeserver.yaml and data/synapse/localhost.signing.key and data/synapse/localhost.log.config
+3. Run docker compose run --rm synapse generate again
+4. Configure PostgreSQL in homeserver.yaml (it's currently using SQLite)
+5. Configure enable_registration in homeserver.yaml
+6. Update element/config.json with the new base_url (using the host's IP)
+
+4. Configure Synapse to use PostgreSQL
+The generated config uses SQLite. Since the docker-compose.yml has a PostgreSQL service, we should configure Synapse to use it. The database section should be:
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: postgres_secreto
+    database: synapse
+    host: postgres
+    port: 5432
+    cp_min: 5
+    cp_max: 10
+
+5. Enable registration
+Add to homeserver.yaml:
+enable_registration: true
+enable_registration_without_verification: true
+
+6. Update element/config.json
+Change base_url to http://<HOST_LAN_IP>:8008 and server_name to the new server name.
+
+7. Restart everything
+docker compose down and docker compose up -d
+
+Let me also think about whether we need to change the Docker compose port mapping. Currently:
+- Synapse: 8008:8008 — accessible on host's IP port 8008
+- Element: 80:80 — accessible on host's IP port 80
+
+For another machine:
+- They open browser and go to http://<HOST_LAN_IP> to access Element Web
+- Element Web will try to connect to Synapse at http://<HOST_LAN_IP>:8008 (the base_url)
+- They can register and then chat
+
+This should work for LAN access. For internet access (federation), it's a whole different story involving DNS, SSL certificates, port forwarding, etc.
