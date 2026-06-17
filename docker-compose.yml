@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  synapse:
+    image: matrixdotorg/synapse:latest
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./data/synapse:/data
+    environment:
+      SYNAPSE_SERVER_NAME: ${SYNAPSE_SERVER_NAME}
+      SYNAPSE_REPORT_STATS: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  element:
+    image: vectorim/element-web:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./element/config.json:/app/config.json
+    depends_on:
+      - synapse
+    restart: unless-stopped

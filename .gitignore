@@ -1,0 +1,6 @@
+# Datos persistentes de Docker (no committear)
+data/
+
+# Configuraciones generadas
+element/config.json
+synapse/
