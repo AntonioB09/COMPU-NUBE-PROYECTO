@@ -19,7 +19,8 @@ proyecto-cp/
 │   └── setup.ps1                 # Bootstrap completo
 └── data/                         # Volúmenes Docker (persistencia)
     ├── synapse/
-    └── postgres/
+    ├── postgres/
+    └── backups/                  # Copias de seguridad automáticas de la BD
 ```
 
 ---
@@ -90,6 +91,24 @@ services:
     depends_on:
       - synapse
     restart: unless-stopped
+
+  postgres-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: 7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 6
+    volumes:
+      - ./data/backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
 ```
 
 ### 1.3 `element/config.json` (template generado por script)
